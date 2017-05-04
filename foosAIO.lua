@@ -1,3 +1,8 @@
+-- foosAIO.lua
+-- Version: 0.01a (alpha initial release)
+-- Author: foo0oo
+-- Release Date: 2017/5/03
+
 local fooAllInOne = {}
 
 fooAllInOne.optionEnable = Menu.AddOption({ "Utility","foos AllInOne" }, "Enabled", "Helpers helper")
