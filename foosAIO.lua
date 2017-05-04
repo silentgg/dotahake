@@ -1,5 +1,5 @@
 -- foosAIO.lua
--- Version: 0.01a (alpha initial release)
+-- Version: 0.02a (alpha initial release)
 -- Author: foo0oo
 -- Release Date: 2017/5/03
 
@@ -106,7 +106,7 @@ function fooAllInOne.OnUpdate()
 		fooAllInOne.setOrderLinkens(false)
 	end
 
-	local enemy = fooAllInOne.targetChecker(myHero)
+	local enemy = fooAllInOne.targetChecker(Input.GetNearestHeroToCursor(Entity.GetTeamNum(myHero), Enum.TeamType.TEAM_ENEMY))
 
 	if enemy then
 		
@@ -260,32 +260,32 @@ function fooAllInOne.OnMenuOptionChange(option, old, new)
 
 end
 
-function fooAllInOne.targetChecker(myHero)
+function fooAllInOne.targetChecker(genericEnemyEntity)
 
-	local enemys = Input.GetNearestHeroToCursor(Entity.GetTeamNum(myHero), Enum.TeamType.TEAM_ENEMY)
+--	local enemys = Input.GetNearestHeroToCursor(Entity.GetTeamNum(myHero), Enum.TeamType.TEAM_ENEMY)
 
-	if enemys and not NPC.IsDormant(enemys) and not NPC.IsIllusion(enemys) then
+	if genericEnemyEntity and not NPC.IsDormant(genericEnemyEntity) and not NPC.IsIllusion(genericEnemyEntity) then
 
-		if NPC.GetUnitName(enemys) == "npc_dota_hero_antimage" and NPC.HasItem(enemys, "item_ultimate_scepter", true) and NPC.HasModifier(enemys, "modifier_antimage_spell_shield") and Ability.IsReady(NPC.GetAbility(enemys, "antimage_spell_shield")) then
+		if NPC.GetUnitName(genericEnemyEntity) == "npc_dota_hero_antimage" and NPC.HasItem(genericEnemyEntity, "item_ultimate_scepter", true) and NPC.HasModifier(genericEnemyEntity, "modifier_antimage_spell_shield") and Ability.IsReady(NPC.GetAbility(genericEnemyEntity, "antimage_spell_shield")) then
 			return
 		end
-		if NPC.HasModifier(enemys, "modifier_item_lotus_orb_active") then
+		if NPC.HasModifier(genericEnemyEntity, "modifier_item_lotus_orb_active") then
 			return
 		end
-		if NPC.HasModifier(enemys, "modifier_winter_wyvern_winters_curse") then
+		if NPC.HasModifier(genericEnemyEntity, "modifier_winter_wyvern_winters_curse") then
 			return
 		end
-		if NPC.HasModifier(enemys, "modifier_item_blade_mail_reflect") then
+		if NPC.HasModifier(genericEnemyEntity, "modifier_item_blade_mail_reflect") then
 			return
 		end
-		if NPC.HasModifier(enemys, "modifier_nyx_assassin_spiked_carapace") then
+		if NPC.HasModifier(genericEnemyEntity, "modifier_nyx_assassin_spiked_carapace") then
 			return
 		end
-		if NPC.GetUnitName(enemys) == "npc_dota_hero_warlock" then
+		if NPC.GetUnitName(genericEnemyEntity) == "npc_dota_hero_warlock" then
 			return
 		end
 
-	return enemys
+	return genericEnemyEntity
 	end	
 end
 
@@ -977,7 +977,7 @@ end
 function fooAllInOne.TimberCombo(myHero, enemy)
 
 	if not Menu.IsEnabled(fooAllInOne.optionHeroTimber) then return end
-	if not NPC.IsEntityInRange(myHero, enemy, 2500)	then return end
+	
 	if (os.clock() - lastTick) < delay then return end
 
 	local whirlingDeath = NPC.GetAbilityByIndex(myHero, 0)
@@ -990,6 +990,12 @@ function fooAllInOne.TimberCombo(myHero, enemy)
 	local aghanims = NPC.GetItem(myHero, "item_ultimate_scepter", true)
 	local blink = NPC.GetItem(myHero, "item_blink", true)
 	
+	local chainCheckRange = Ability.GetCastRange(timberChain) + NPC.GetCastRangeBonus(myHero)
+		if blink then
+			chainCheckRange = chainCheckRange + 1150
+		end
+	if not NPC.IsPositionInRange(myHero, Input.GetWorldCursorPos(), chainCheckRange, 0) then return end
+
 	local myMana = NPC.GetMana(myHero)
 
 	if Entity.GetHealth(enemy) > 0 and NPC.HasModifier(myHero, "modifier_shredder_timber_chain") then
@@ -2167,13 +2173,12 @@ fooAllInOne.AbilityList = {
 function fooAllInOne.AutoNukeKillSteal(myHero)
 
 	local myMana = NPC.GetMana(myHero)
-	for _, stealEnemy in ipairs(NPC.GetHeroesInRadius(myHero, 1200, Enum.TeamType.TEAM_ENEMY)) do
+	for _, stealEnemyEntity in ipairs(NPC.GetHeroesInRadius(myHero, 1200, Enum.TeamType.TEAM_ENEMY)) do
+		if not stealEnemyEntity then return end
 
-	if not stealEnemy then return end
-	if not NPC.IsHero(stealEnemy) or NPC.IsIllusion(stealEnemy) or NPC.IsDormant(stealEnemy) or NPC.HasState(enemy, Enum.ModifierState.MODIFIER_STATE_MAGIC_IMMUNE) or NPC.IsChannellingAbility(myHero) or NPC.HasState(myHero, Enum.ModifierState.MODIFIER_STATE_INVISIBLE) then return end
-	
-	local stealSelector = fooAllInOne.targetChecker(stealEnemy)
-	if not stealSelector then return end
+	stealEnemy = fooAllInOne.targetChecker(stealEnemyEntity)
+		if not stealEnemy then return end
+		if NPC.HasState(stealEnemy, Enum.ModifierState.MODIFIER_STATE_MAGIC_IMMUNE) or NPC.IsChannellingAbility(myHero) or NPC.HasState(myHero, Enum.ModifierState.MODIFIER_STATE_INVISIBLE) then return end
 
 		for n, v in ipairs(fooAllInOne.AbilityList) do
 			local heroName = v[1]
