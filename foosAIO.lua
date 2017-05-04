@@ -1977,7 +1977,7 @@ fooAllInOne.AbilityList = {
 { "npc_dota_hero_pugna", "pugna_nether_ward", "utility", "0" , "0" },
 { "npc_dota_hero_queenofpain", "queenofpain_sonic_wave", "nuke", "position" , "damage" },
 { "npc_dota_hero_queenofpain", "queenofpain_shadow_strike", "nuke", "target" , "strike_damage" },
-{ "npc_dota_hero_queenofpain", "queenofpain_scream_of_pain", "nuke", "no target" , "0" },
+{ "npc_dota_hero_queenofpain", "queenofpain_scream_of_pain", "nuke", "special" , "0" },
 { "npc_dota_hero_queenofpain", "queenofpain_blink", "utility", "0" , "0" },
 { "npc_dota_hero_rattletrap", "rattletrap_battery_assault", "disable", "no target" , "0" },
 { "npc_dota_hero_rattletrap", "rattletrap_hookshot", "disable", "position" , "0" },
@@ -2173,6 +2173,7 @@ fooAllInOne.AbilityList = {
 function fooAllInOne.AutoNukeKillSteal(myHero)
 
 	local myMana = NPC.GetMana(myHero)
+
 	for _, stealEnemyEntity in ipairs(NPC.GetHeroesInRadius(myHero, 1200, Enum.TeamType.TEAM_ENEMY)) do
 		if not stealEnemyEntity then return end
 
@@ -2182,11 +2183,12 @@ function fooAllInOne.AutoNukeKillSteal(myHero)
 
 		for n, v in ipairs(fooAllInOne.AbilityList) do
 			local heroName = v[1]
-        		local skillName = v[2]
+	      		local skillName = v[2]
 			local skillType = v[3]
 			local targetMode = v[4]
 			local specialAttribute = v[5]
-
+		
+			
 			if NPC.GetUnitName(myHero) == heroName then
 				if skillType == "nuke" and not Ability.IsUltimate(NPC.GetAbility(myHero, skillName)) then
 					if Entity.GetHealth(stealEnemy) > 0 then
@@ -2274,7 +2276,17 @@ function fooAllInOne.AutoNukeKillSteal(myHero)
 									end
 								end
 							end
-						end		
+						end
+						if skillName == "queenofpain_scream_of_pain" then
+							if NPC.IsEntityInRange(myHero, stealEnemy, Ability.GetLevelSpecialValueFor(NPC.GetAbility(myHero, skillName), "area_of_effect")) and targetMode == "special" then
+								if Entity.GetHealth(stealEnemy) <= (1 - NPC.GetMagicalArmorValue(stealEnemy))*Ability.GetDamage(NPC.GetAbility(myHero, skillName), 0) then
+									if NPC.GetAbility(myHero, skillName) and Ability.IsCastable(NPC.GetAbility(myHero, skillName), myMana) then
+										Ability.CastNoTarget(NPC.GetAbility(myHero, skillName))
+										return
+									end
+								end
+							end
+						end	
 					end
 				end
 			end
