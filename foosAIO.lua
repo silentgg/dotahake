@@ -1,5 +1,5 @@
 -- foosAIO.lua
--- Version: 0.12b (alpha initial release)
+-- Version: 0.12c (alpha initial release)
 -- Author: foo0oo
 -- Release Date: 2017/5/03
 
@@ -30,6 +30,8 @@ fooAllInOne.optionItemDagon = Menu.AddOption({ "Utility","foos AllInOne", "Auto 
 fooAllInOne.optionItemUrn = Menu.AddOption({ "Utility","foos AllInOne", "Auto Item Usage", "Items" }, "Use Item Urn of shadows", "cast order - highest number will be cast first", 0, 10, 1)
 fooAllInOne.optionItemManta = Menu.AddOption({ "Utility","foos AllInOne", "Auto Item Usage", "Items" }, "Use Item Manta Style", "cast order - highest number will be cast first", 0, 10, 1)
 fooAllInOne.optionItemMjollnir = Menu.AddOption({ "Utility","foos AllInOne", "Auto Item Usage", "Items" }, "Use Item Mjollnir", "cast order - highest number will be cast first", 0, 10, 1)
+fooAllInOne.optionItemMedallion = Menu.AddOption({ "Utility","foos AllInOne", "Auto Item Usage", "Items" }, "Use Item Medallion of Courage", "cast order - highest number will be cast first", 0, 10, 1)
+fooAllInOne.optionItemCrest = Menu.AddOption({ "Utility","foos AllInOne", "Auto Item Usage", "Items" }, "Use Item Solar Crest", "cast order - highest number will be cast first", 0, 10, 1)
 	-- Linkens Menu
 fooAllInOne.optionLinkensEnable = Menu.AddOption({ "Utility","foos AllInOne", "Auto Break Linkens" }, "Enabled", "Helpers helper")
 fooAllInOne.optionLinkensForce = Menu.AddOption({ "Utility","foos AllInOne", "Auto Break Linkens" }, "Use Force Staff", "to break Linkens - highest number will be prioritized", 0, 6, 1)
@@ -81,6 +83,8 @@ Menu.SetValueName(fooAllInOne.optionItemDagon, 0, 'OFF')
 Menu.SetValueName(fooAllInOne.optionItemDagon, -1, 'only if killable')
 Menu.SetValueName(fooAllInOne.optionItemManta, 0, 'OFF')
 Menu.SetValueName(fooAllInOne.optionItemMjollnir, 0, 'OFF')
+Menu.SetValueName(fooAllInOne.optionItemMedallion, 0, 'OFF')
+Menu.SetValueName(fooAllInOne.optionItemCrest, 0, 'OFF')
 
 Menu.SetValueName(fooAllInOne.optionItemVeil, 1, 'ON')
 Menu.SetValueName(fooAllInOne.optionItemHex, 1, 'ON')
@@ -95,6 +99,8 @@ Menu.SetValueName(fooAllInOne.optionItemUrn, 1, 'ON')
 Menu.SetValueName(fooAllInOne.optionItemDagon, 1, 'ON')
 Menu.SetValueName(fooAllInOne.optionItemManta, 1, 'ON')
 Menu.SetValueName(fooAllInOne.optionItemMjollnir, 1, 'ON')
+Menu.SetValueName(fooAllInOne.optionItemMedallion, 1, 'ON')
+Menu.SetValueName(fooAllInOne.optionItemCrest, 1, 'ON')
 
 Menu.SetValueName(fooAllInOne.optionItemStyle, 0, 'max speed, no order')
 Menu.SetValueName(fooAllInOne.optionItemStyle, 1, 'ordered')
@@ -840,7 +846,9 @@ function fooAllInOne.setOrderItem(printed)
 		{Menu.GetValue(fooAllInOne.optionItemDagon),"item_dagon_5", "target"},
 		{Menu.GetValue(fooAllInOne.optionItemUrn),"item_urn_of_shadows", "target"},
 		{Menu.GetValue(fooAllInOne.optionItemManta),"item_manta", "no target"},
-		{Menu.GetValue(fooAllInOne.optionItemMjollnir),"item_mjollnir", "target"}
+		{Menu.GetValue(fooAllInOne.optionItemMjollnir),"item_mjollnir", "target"},
+		{Menu.GetValue(fooAllInOne.optionItemMedallion),"item_medallion_of_courage", "target"},
+		{Menu.GetValue(fooAllInOne.optionItemCrest),"item_solar_crest", "target"}
     				}
 
     	table.sort(fooAllInOne.ItemCastOrder, function(a, b)
@@ -895,7 +903,9 @@ function fooAllInOne.OnMenuOptionChange(option, old, new)
 		option == fooAllInOne.optionItemDagon or 
 		option == fooAllInOne.optionItemUrn or
 		option == fooAllInOne.optionItemManta or
-		option == fooAllInOne.optionItemMjollnir then
+		option == fooAllInOne.optionItemMjollnir or
+		option == fooAllInOne.optionItemMedallion or
+		option == fooAllInOne.optionItemCrest then
 			fooAllInOne.setOrderItem(false)
 	end
 	
@@ -1061,6 +1071,8 @@ function fooAllInOne.itemUsageNoOrder(myHero, enemy)
 	local manta = NPC.GetItem(myHero, "item_manta", true)
 	local soulring = NPC.GetItem(myHero, "item_soul_ring", true)
 	local mjollnir = NPC.GetItem(myHero, "item_mjollnir", true)
+	local medallion = NPC.GetItem(myHero, "item_medallion_of_courage", true)
+	local crest = NPC.GetItem(myHero, "item_solar_crest", true)
 
 	local dagon = NPC.GetItem(myHero, "item_dagon", true)
 		if not dagon then
@@ -1132,6 +1144,14 @@ function fooAllInOne.itemUsageNoOrder(myHero, enemy)
 
 			if urn and NPC.IsEntityInRange(myHero, enemy, 950 + NPC.GetCastRangeBonus(myHero)) and Ability.IsCastable(urn, myMana) and Item.GetCurrentCharges(urn) >= 3 and Entity.GetHealth(enemy) >= 300 and Menu.GetValue(fooAllInOne.optionItemUrn) > 0 then
 				Ability.CastTarget(urn, enemy)
+			end
+
+			if medallion and NPC.IsEntityInRange(myHero, enemy, 1000 + NPC.GetCastRangeBonus(myHero)) and Ability.IsCastable(medallion, myMana) and Menu.GetValue(fooAllInOne.optionItemMedallion) > 0 then 
+				Ability.CastTarget(medallion, enemy)
+			end
+
+			if crest and NPC.IsEntityInRange(myHero, enemy, 1000 + NPC.GetCastRangeBonus(myHero)) and Ability.IsCastable(crest, myMana) and Menu.GetValue(fooAllInOne.optionItemCrest) > 0 then 
+				Ability.CastTarget(crest, enemy)
 			end
 
 			if dagon and NPC.IsEntityInRange(myHero, enemy, Ability.GetCastRange(dagon) + NPC.GetCastRangeBonus(myHero)) and Ability.IsCastable(dagon, myMana) and Menu.GetValue(fooAllInOne.optionItemDagon) > 0 then
@@ -1211,7 +1231,7 @@ function fooAllInOne.itemUsageOrder(myHero, enemy)
 					v[2] == "item_ethereal_blade" or v[2] == "item_orchid" or v[2] == "item_rod_of_atos" or
 					v[2] == "item_heavens_halberd" or v[2] == "item_urn_of_shadows" or v[2] == "item_dagon"
 					or v[2] == "item_dagon_2" or v[2] == "item_dagon_3" or v[2] == "item_dagon_4" 
-					or v[2] == "item_dagon_5" then
+					or v[2] == "item_dagon_5" or v[2] == "item_medallion_of_courage" or v[2] == "item_solar_crest" then
 						skipItem = v[1]
 				end
 			end
@@ -1313,7 +1333,7 @@ function fooAllInOne.itemUsageSmartOrder(myHero, enemy)
 					v[2] == "item_ethereal_blade" or v[2] == "item_orchid" or v[2] == "item_rod_of_atos" or
 					v[2] == "item_heavens_halberd" or v[2] == "item_urn_of_shadows" or v[2] == "item_dagon"
 					or v[2] == "item_dagon_2" or v[2] == "item_dagon_3" or v[2] == "item_dagon_4" 
-					or v[2] == "item_dagon_5" then
+					or v[2] == "item_dagon_5" or v[2] == "item_medallion_of_courage" or v[2] == "item_solar_crest" then
 						skipItem = v[1]
 				end
 			end
