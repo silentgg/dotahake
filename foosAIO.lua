@@ -1,5 +1,5 @@
 -- foosAIO.lua
--- Version: 0.13b (alpha initial release)
+-- Version: 0.13c (alpha initial release)
 -- Author: foo0oo
 -- Release Date: 2017/5/03
 
@@ -61,6 +61,7 @@ fooAllInOne.optionHeroEmberUlt = Menu.AddOption({ "Utility","foos AllInOne", "He
 fooAllInOne.optionHeroUrsa = Menu.AddOption({ "Utility","foos AllInOne", "Hero Scripts" }, "Ursa Combo", "full combo, trigger enrage if 2 or more heroes in range")
 fooAllInOne.optionHeroTA = Menu.AddOption({ "Utility","foos AllInOne", "Hero Scripts", "Templar Assassin" }, "TA Combo", "full combo")
 fooAllInOne.optionHeroTATrap = Menu.AddOption({ "Utility","foos AllInOne", "Hero Scripts", "Templar Assassin" }, "Cast/Pop trap before combo", "")
+fooAllInOne.optionHeroTABlink = Menu.AddOption({ "Utility","foos AllInOne", "Hero Scripts", "Templar Assassin" }, "Use blink in Combo", "")
 fooAllInOne.optionHeroLegion = Menu.AddOption({ "Utility","foos AllInOne", "Hero Scripts" }, "Legion Commander Combo", "full combo")
 fooAllInOne.optionHeroSlardar = Menu.AddOption({ "Utility","foos AllInOne", "Hero Scripts" }, "Slardar Combo", "full combo")
 fooAllInOne.optionHeroClinkz = Menu.AddOption({ "Utility","foos AllInOne", "Hero Scripts" }, "Clinkz Combo", "full combo, auto ult on enemy creeps or neutrals when ready")
@@ -72,6 +73,8 @@ fooAllInOne.optionHeroArcWarden = Menu.AddOption({ "Utility","foos AllInOne", "H
 fooAllInOne.optionHeroArcWardenPush = Menu.AddOption({ "Utility","foos AllInOne", "Hero Scripts", "Arc Warden" }, "Arc Warden Push Mode", "push mode with double, if you have BoTs")
 fooAllInOne.optionHeroArcWardenPushTP = Menu.AddOption({ "Utility","foos AllInOne", "Hero Scripts", "Arc Warden" }, "Push mode with TP", "Script searches for a suitable tower (if creeps in range, max one ally hero around) to port to. Often times, there is no suitable tower!")
 fooAllInOne.optionArcWardenPushKey = Menu.AddKeyOption({ "Utility","foos AllInOne", "Hero Scripts", "Arc Warden" }, "Push Key", Enum.ButtonCode.KEY_P)
+fooAllInOne.optionHeroArcWardenPushTPStyle = Menu.AddOption({ "Utility","foos AllInOne", "Hero Scripts", "Arc Warden" }, "TP targeting style", "", 0, 1, 1)
+fooAllInOne.optionHeroArcWardenPushTPSelect = Menu.AddOption({ "Utility","foos AllInOne", "Hero Scripts", "Arc Warden" }, "Auto line selector", "", 0, 1, 1)
 	-- Menu set values
 Menu.SetValueName(fooAllInOne.optionItemVeil, 0, 'OFF')
 Menu.SetValueName(fooAllInOne.optionItemHex, 0, 'OFF')
@@ -119,6 +122,11 @@ Menu.SetValueName(fooAllInOne.optionLinkensOrchid, 0, 'OFF')
 
 Menu.SetValueName(fooAllInOne.optionHeroEmberUlt, 0, 'use all charges')
 Menu.SetValueName(fooAllInOne.optionHeroEmberUlt, 1, 'use one charge')
+Menu.SetValueName(fooAllInOne.optionHeroArcWardenPushTPStyle, 0, 'auto select line')
+Menu.SetValueName(fooAllInOne.optionHeroArcWardenPushTPStyle, 1, 'port to cursor')
+Menu.SetValueName(fooAllInOne.optionHeroArcWardenPushTPSelect, 0, 'furthest pushed')
+Menu.SetValueName(fooAllInOne.optionHeroArcWardenPushTPSelect, 1, 'least pushed')
+
 	-- global Variables
 fooAllInOne.lastCastTime = 0
 fooAllInOne.lastCastTime2 = 0
@@ -1561,8 +1569,15 @@ function fooAllInOne.utilityItemArcane(myHero, arcane)
 	end
 end
 
-function fooAllInOne.utilityItemMidas(myHero, midas)
+function fooAllInOne.utilityItemMidas(myHero, midas, bountyXPthreshold)
 	if not midas then return end
+
+	local bountyXP
+	if bountyXPthreshold == nil then
+		bountyXP = 88
+	else bountyXP = bountyXPthreshold
+	end
+
 	AncientNameList = { "npc_dota_neutral_black_drake",
     				"npc_dota_neutral_black_dragon",
     				"npc_dota_neutral_blue_dragonspawn_sorcerer",
@@ -1587,7 +1602,7 @@ function fooAllInOne.utilityItemMidas(myHero, midas)
 					end
 				end
 			end
-			if (NPC.IsLaneCreep(creeps) or NPC.IsCreep(creeps)) and bounty >= 88 and Ability.IsReady(midas) then
+			if (NPC.IsLaneCreep(creeps) or NPC.IsCreep(creeps)) and bounty >= bountyXP and Ability.IsReady(midas) then
 				Ability.CastTarget(midas, creeps)
 				return
 			end
@@ -2179,11 +2194,16 @@ function fooAllInOne.TACombo(myHero, enemy)
 			return
 		end
 		if not Menu.IsEnabled(fooAllInOne.optionHeroTATrap) then
-			if not NPC.IsEntityInRange(myHero, enemy, NPC.GetAttackRange(myHero)) then
-				if blink and Ability.IsReady(blink) then
+			if not NPC.IsEntityInRange(myHero, enemy, NPC.GetAttackRange(myHero)-25) then
+				if blink and Ability.IsReady(blink) and Menu.IsEnabled(fooAllInOne.optionHeroTABlink) then
 					Ability.CastPosition(blink, (Entity.GetAbsOrigin(enemy) + (Entity.GetAbsOrigin(myHero) - Entity.GetAbsOrigin(enemy)):Normalized():Scaled(200)))
 					return
 				end
+				if not blink or (blink and not Ability.IsReady(blink)) or not Menu.IsEnabled(fooAllInOne.optionHeroTABlink) then
+					Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_MOVE_TO_TARGET, enemy, Vector(0, 0, 0), ability, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_HERO_ONLY, npc, queue, showEffects)
+					fooAllInOne.makeDelay(0.1)
+					return
+				end	
 			else
 				if meld and Ability.IsCastable(meld, myMana) then
 					Ability.CastNoTarget(meld)
@@ -2834,6 +2854,14 @@ function fooAllInOne.ArcWardenPort(myHero, tempestDoubleEntity, tempestDouble, m
 		else enemyFountainPos = radiantFountain
 		end
 	end
+
+	local myFountainPos
+	if myFountainPos == nil then
+		if myFaction == "radiant" then
+			myFountainPos = radiantFountain
+		else myFountainPos = direFountain
+		end
+	end
 	
 	local townPortal = NPC.GetItem(tempestDoubleEntity, "item_tpscroll", true)
 	local travelBoots1 = NPC.GetItem(tempestDoubleEntity, "item_travel_boots", true)
@@ -2841,49 +2869,79 @@ function fooAllInOne.ArcWardenPort(myHero, tempestDoubleEntity, tempestDouble, m
 	
 	local wardenMana = NPC.GetMana(tempestDoubleEntity)
 
-	if Menu.IsEnabled(fooAllInOne.optionHeroArcWardenPushTP) then	
-		local targetTower
-		if NPC.HasItem(myHero, "item_tpscroll", true) then
-			for i = 1, NPCs.Count() do 
-			local npc = NPCs.Get(i)
-  				if Entity.IsSameTeam(myHero, npc) and NPC.IsTower(npc) then
-					if #NPC.GetUnitsInRadius(npc, 1500, Enum.TeamType.TEAM_ENEMY) >= 3 and #NPC.GetHeroesInRadius(npc, 900, Enum.TeamType.TEAM_ENEMY) <= 1  and #NPC.GetHeroesInRadius(npc, 1000, Enum.TeamType.TEAM_FRIEND) <= 1 then
-						if npc ~= nil then
-							if (Entity.GetAbsOrigin(npc) - Entity.GetAbsOrigin(myHero)):Length2D() > 3000 then
-								targetTower = npc
+	if Menu.GetValue(fooAllInOne.optionHeroArcWardenPushTPStyle) == 1 then
+		if tempestDouble and Ability.IsCastable(tempestDouble, myMana) then
+			Ability.CastNoTarget(tempestDouble)
+			fooAllInOne.makeDelay(Ability.GetCastPoint(tempestDouble))
+			return
+		end
+		if townPortal and Ability.IsCastable(townportal, wardenMana) and Menu.IsEnabled(fooAllInOne.optionHeroArcWardenPushTP) then
+			Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, target, Input.GetWorldCursorPos(), townPortal, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
+			return
+		end
+		if travelBoots1 and Ability.IsCastable(travelBoots1, wardenMana) then
+			Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, target, Input.GetWorldCursorPos(), travelBoots1, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
+			return
+		end
+		if travelBoots2 and Ability.IsCastable(travelBoots2, wardenMana) then
+			Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, target, Input.GetWorldCursorPos(), travelBoots2, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
+			return
+		end
+	end
+
+	if Menu.GetValue(fooAllInOne.optionHeroArcWardenPushTPStyle) == 0 then
+		if Menu.IsEnabled(fooAllInOne.optionHeroArcWardenPushTP) then	
+			local targetTower
+			if NPC.HasItem(myHero, "item_tpscroll", true) then
+				for i = 1, NPCs.Count() do 
+				local npc = NPCs.Get(i)
+  					if Entity.IsSameTeam(myHero, npc) and NPC.IsTower(npc) then
+						if #NPC.GetUnitsInRadius(npc, 1500, Enum.TeamType.TEAM_ENEMY) >= 3 and #NPC.GetHeroesInRadius(npc, 900, Enum.TeamType.TEAM_ENEMY) <= 1  and #NPC.GetHeroesInRadius(npc, 1000, Enum.TeamType.TEAM_FRIEND) <= 1 then
+							if npc ~= nil then
+								if (Entity.GetAbsOrigin(npc) - Entity.GetAbsOrigin(myHero)):Length2D() > 3000 then
+									targetTower = npc
+								end
 							end
 						end
 					end
 				end
 			end
-		end
 
-		if targetTower ~= nil then
-			if tempestDouble and Ability.IsCastable(tempestDouble, myMana) then
-				Ability.CastNoTarget(tempestDouble)
-				fooAllInOne.makeDelay(Ability.GetCastPoint(tempestDouble))
-				return
-			end
-			if tempestDoubleEntity and townPortal and Ability.IsCastable(townPortal, wardenMana) then
-					Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, target, Entity.GetAbsOrigin(targetTower), townPortal, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
+			if targetTower ~= nil then
+				if tempestDouble and Ability.IsCastable(tempestDouble, myMana) then
+					Ability.CastNoTarget(tempestDouble)
+					fooAllInOne.makeDelay(Ability.GetCastPoint(tempestDouble))
 					return
+				end
+				if tempestDoubleEntity and townPortal and Ability.IsCastable(townPortal, wardenMana) then
+						Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, target, Entity.GetAbsOrigin(targetTower), townPortal, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
+						return
+				end
 			end
 		end
-	end
 
-	local targetCreep
-	local pushDistance = 99999
-	if NPC.HasItem(myHero, "item_travel_boots", true) or NPC.HasItem(myHero, "item_travel_boots_2", true) then
-		for i = 1, NPCs.Count() do 
-		local npc = NPCs.Get(i)
-    			if Entity.IsSameTeam(myHero, npc) and NPC.IsLaneCreep(npc) and not NPC.IsDormant(npc) then
-				if #NPC.GetUnitsInRadius(npc, 1200, Enum.TeamType.TEAM_ENEMY) >= 3 and #NPC.GetHeroesInRadius(npc, 900, Enum.TeamType.TEAM_ENEMY) <= 1  and #NPC.GetHeroesInRadius(npc, 1000, Enum.TeamType.TEAM_FRIEND) <= 1 then
-					if (Entity.GetHealth(npc) / Entity.GetMaxHealth(npc)) >= 0.8 and #NPC.GetUnitsInRadius(npc, 500, Enum.TeamType.TEAM_FRIEND) >= 2 then	
-						if npc ~= nil then
-							if (Entity.GetAbsOrigin(npc) - Entity.GetAbsOrigin(myHero)):Length2D() > 3000 then
-								if (Entity.GetAbsOrigin(npc) - enemyFountainPos):Length2D() < pushDistance then
-									targetCreep = npc
-									pushDistance = (Entity.GetAbsOrigin(npc) - enemyFountainPos):Length2D()
+		local targetCreep
+		local pushDistance = 99999
+		if NPC.HasItem(myHero, "item_travel_boots", true) or NPC.HasItem(myHero, "item_travel_boots_2", true) then
+			for i = 1, NPCs.Count() do 
+			local npc = NPCs.Get(i)
+    				if Entity.IsSameTeam(myHero, npc) and NPC.IsLaneCreep(npc) and not NPC.IsDormant(npc) then
+					if #NPC.GetUnitsInRadius(npc, 1200, Enum.TeamType.TEAM_ENEMY) >= 3 and #NPC.GetHeroesInRadius(npc, 900, Enum.TeamType.TEAM_ENEMY) <= 1  and #NPC.GetHeroesInRadius(npc, 1000, Enum.TeamType.TEAM_FRIEND) <= 1 then
+						if (Entity.GetHealth(npc) / Entity.GetMaxHealth(npc)) >= 0.8 and #NPC.GetUnitsInRadius(npc, 500, Enum.TeamType.TEAM_FRIEND) >= 2 then	
+							if npc ~= nil then
+								if (Entity.GetAbsOrigin(npc) - Entity.GetAbsOrigin(myHero)):Length2D() > 3000 then
+									if Menu.GetValue(fooAllInOne.optionHeroArcWardenPushTPSelect) == 0 then
+										if (Entity.GetAbsOrigin(npc) - enemyFountainPos):Length2D() < pushDistance then
+											targetCreep = npc
+											pushDistance = (Entity.GetAbsOrigin(npc) - enemyFountainPos):Length2D()
+										end
+									end
+									if Menu.GetValue(fooAllInOne.optionHeroArcWardenPushTPSelect) == 1 then
+										if (Entity.GetAbsOrigin(npc) - myFountainPos):Length2D() < pushDistance then
+											targetCreep = npc
+											pushDistance = (Entity.GetAbsOrigin(npc) - myFountainPos):Length2D()
+										end
+									end
 								end
 							end
 						end
@@ -2891,26 +2949,26 @@ function fooAllInOne.ArcWardenPort(myHero, tempestDoubleEntity, tempestDouble, m
 				end
 			end
 		end
-	end
 
-	if targetCreep == nil then
-		pushDistance = 99999
-	end
-
-	if targetCreep ~= nil then
-		if tempestDouble and Ability.IsCastable(tempestDouble, myMana) then
-			Ability.CastNoTarget(tempestDouble)
-			fooAllInOne.makeDelay(Ability.GetCastPoint(tempestDouble))
-			return
+		if targetCreep == nil then
+			pushDistance = 99999
 		end
-		if tempestDoubleEntity then
-			 if travelBoots1 and Ability.IsCastable(travelBoots1, wardenMana) then
-				Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, target, Entity.GetAbsOrigin(targetCreep), travelBoots1, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
+
+		if targetCreep ~= nil then
+			if tempestDouble and Ability.IsCastable(tempestDouble, myMana) then
+				Ability.CastNoTarget(tempestDouble)
+				fooAllInOne.makeDelay(Ability.GetCastPoint(tempestDouble))
 				return
 			end
-			if travelBoots2 and Ability.IsCastable(travelBoots2, wardenMana) then
-				Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, target, Entity.GetAbsOrigin(targetCreep), travelBoots2, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
-				return
+			if tempestDoubleEntity then
+				 if travelBoots1 and Ability.IsCastable(travelBoots1, wardenMana) then
+					Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, target, Entity.GetAbsOrigin(targetCreep), travelBoots1, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
+					return
+				end
+				if travelBoots2 and Ability.IsCastable(travelBoots2, wardenMana) then
+					Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, target, Entity.GetAbsOrigin(targetCreep), travelBoots2, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
+					return
+				end
 			end
 		end
 	end
@@ -2925,13 +2983,13 @@ function fooAllInOne.ArcWardenPush(myHero, tempestDoubleEntity, myFaction, radia
 
 	local wardenMana = NPC.GetMana(tempestDoubleEntity)
 
-	fooAllInOne.utilityItemMidas(tempestDoubleEntity, NPC.GetItem(tempestDoubleEntity, "item_hand_of_midas", true))
+	fooAllInOne.utilityItemMidas(tempestDoubleEntity, NPC.GetItem(tempestDoubleEntity, "item_hand_of_midas", true), 45)
 
 	local targetHero
 	local enemyHeroHealth = 99999
 	local targetCreep
 	local enemyCreepHealth = 99999
-	for i, heroes in ipairs(NPC.GetHeroesInRadius(tempestDoubleEntity, 1000, Enum.TeamType.TEAM_ENEMY)) do
+	for i, heroes in ipairs(NPC.GetHeroesInRadius(tempestDoubleEntity, 800, Enum.TeamType.TEAM_ENEMY)) do
 		if heroes then
         		if Entity.IsAlive(heroes) and not Entity.IsDormant(heroes) and not NPC.HasState(heroes, Enum.ModifierState.MODIFIER_STATE_MAGIC_IMMUNE) and not NPC.IsIllusion(heroes) then
 				if Entity.GetHealth(heroes) < enemyHeroHealth then
@@ -2951,13 +3009,18 @@ function fooAllInOne.ArcWardenPush(myHero, tempestDoubleEntity, myFaction, radia
 		end
 	end
 
+	if #NPC.GetUnitsInRadius(tempestDoubleEntity, 1000, Enum.TeamType.TEAM_ENEMY) < 1 then
+		targetHero = nil
+		targetCreep = nil
+	end
+		
 	if targetHero then
 		fooAllInOne.ArcWardenFight(myHero, targetHero, tempestDoubleEntity)
 		fooAllInOne.itemUsageSmartOrder(tempestDoubleEntity, targetHero, true)
 	else enemyHeroHealth = 99999
 	end
 
-	if NPC.IsTower(targetCreep) or #NPC.GetUnitsInRadius(tempestDoubleEntity, 600, Enum.TeamType.TEAM_ENEMY) > 3 then
+	if #NPC.GetUnitsInRadius(tempestDoubleEntity, 600, Enum.TeamType.TEAM_ENEMY) > 3 then
 		if NPC.GetAbilityByIndex(tempestDoubleEntity, 1) and Ability.IsCastable(NPC.GetAbilityByIndex(tempestDoubleEntity, 1), wardenMana) then
 			Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, target, Entity.GetAbsOrigin(tempestDoubleEntity), NPC.GetAbilityByIndex(tempestDoubleEntity, 1), Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
 			return
@@ -2965,19 +3028,29 @@ function fooAllInOne.ArcWardenPush(myHero, tempestDoubleEntity, myFaction, radia
 	end
 
 	if targetCreep then
-		Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_ATTACK_TARGET, creeps, Vector(0,0,0), ability, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
-		fooAllInOne.makeDelay(0.2)
-		return
-	else enemyCreepHealth = 99999
+		if (os.clock() - fooAllInOne.ControlledUnitCastTime) > 0.5 then
+			Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_ATTACK_TARGET, creeps, Vector(0,0,0), ability, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
+			fooAllInOne.ControlledUnitCastTime = os.clock()
+	--		return
+		end
+	end
+
+	if targetCreep == nil then
+		enemyCreepHealth = 99999
 	end
          
-	if not targetHero and not targetCreep then
+	if #NPC.GetUnitsInRadius(tempestDoubleEntity, 1000, Enum.TeamType.TEAM_ENEMY) < 1 then
 		if myFaction == "radiant" then
-			Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_ATTACK_MOVE, target, direFountain, ability, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
-			fooAllInOne.makeDelay(0.2)
-		else
-			Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_ATTACK_MOVE, target, radiantFountain, ability, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
-			fooAllInOne.makeDelay(0.2)
+			if (os.clock() - fooAllInOne.ControlledUnitCastTime) > 0.5 then
+				Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_ATTACK_MOVE, target, direFountain, ability, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
+				fooAllInOne.ControlledUnitCastTime = os.clock()
+			end
+		end
+		if myFaction == "dire" then
+			if (os.clock() - fooAllInOne.ControlledUnitCastTime) > 0.5 then
+				Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_ATTACK_MOVE, target, radiantFountain, ability, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
+				fooAllInOne.ControlledUnitCastTime = os.clock()
+			end
 		end
 	end	
 end
