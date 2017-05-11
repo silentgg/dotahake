@@ -1,5 +1,5 @@
 -- foosAIO.lua
--- Version: 0.12c (alpha initial release)
+-- Version: 0.13b (alpha initial release)
 -- Author: foo0oo
 -- Release Date: 2017/5/03
 
@@ -68,6 +68,10 @@ fooAllInOne.optionHeroQoP = Menu.AddOption({ "Utility","foos AllInOne", "Hero Sc
 fooAllInOne.optionHeroSven = Menu.AddOption({ "Utility","foos AllInOne", "Hero Scripts" }, "Sven Combo", "full combo, MoM after everything is used")
 fooAllInOne.optionHeroVisage = Menu.AddOption({ "Utility","foos AllInOne", "Hero Scripts", "Visage" }, "Visage Combo", "full combo with Familiars")
 fooAllInOne.optionHeroVisageDMGStacks = Menu.AddOption({ "Utility","foos AllInOne", "Hero Scripts", "Visage" }, "Familiar DMG stacks", "number of remaining familiar damage stacks when starting stun chain", 1, 6, 1)
+fooAllInOne.optionHeroArcWarden = Menu.AddOption({ "Utility","foos AllInOne", "Hero Scripts", "Arc Warden" }, "Arc Warden Combo", "full combo with double")
+fooAllInOne.optionHeroArcWardenPush = Menu.AddOption({ "Utility","foos AllInOne", "Hero Scripts", "Arc Warden" }, "Arc Warden Push Mode", "push mode with double, if you have BoTs")
+fooAllInOne.optionHeroArcWardenPushTP = Menu.AddOption({ "Utility","foos AllInOne", "Hero Scripts", "Arc Warden" }, "Push mode with TP", "Script searches for a suitable tower (if creeps in range, max one ally hero around) to port to. Often times, there is no suitable tower!")
+fooAllInOne.optionArcWardenPushKey = Menu.AddKeyOption({ "Utility","foos AllInOne", "Hero Scripts", "Arc Warden" }, "Push Key", Enum.ButtonCode.KEY_P)
 	-- Menu set values
 Menu.SetValueName(fooAllInOne.optionItemVeil, 0, 'OFF')
 Menu.SetValueName(fooAllInOne.optionItemHex, 0, 'OFF')
@@ -756,6 +760,10 @@ function fooAllInOne.OnUpdate()
 
 		end
 	end
+
+	if NPC.GetUnitName(myHero) == "npc_dota_hero_arc_warden" then
+		fooAllInOne.ArcWardenCombo(myHero, enemy)
+	end
 	
 	if NPC.GetUnitName(myHero) == "npc_dota_hero_clinkz" then
 		fooAllInOne.ClinkzAutoUlt(myHero)
@@ -784,7 +792,7 @@ function fooAllInOne.OnUpdate()
 --	Log.Write(tostring(NPC.GetUnitName(npc)) .. " " .. tostring(Entity.GetOwner(npc)) .. " " .. tostring(Entity.OwnedBy(npc, myHero)))
 --	end
 
---	local modifiers = NPC.GetModifiers(enemy)
+--	local modifiers = NPC.GetModifiers(myHero)
 --	for _, modifier in ipairs(modifiers) do
 --	local modifierName = Modifier.GetName(modifier)
 --	Log.Write(modifierName)
@@ -1281,7 +1289,13 @@ function fooAllInOne.itemUsageOrder(myHero, enemy)
 	end
 end
 
-function fooAllInOne.itemUsageSmartOrder(myHero, enemy)
+function fooAllInOne.itemUsageSmartOrder(myHero, enemy, activation)
+	local alternateActivation
+	if activation == nil then
+		alternateActivation = false
+	else alternateActivation = activation
+	end
+	
 
 	local myMana = NPC.GetMana(myHero)
 
@@ -1294,7 +1308,7 @@ function fooAllInOne.itemUsageSmartOrder(myHero, enemy)
 			end
 		end
 
-	if Menu.IsKeyDown(fooAllInOne.optionComboKey) and not NPC.IsChannellingAbility(myHero) and not NPC.HasState(myHero, Enum.ModifierState.MODIFIER_STATE_INVISIBLE) then
+	if (Menu.IsKeyDown(fooAllInOne.optionComboKey) or alternateActivation) and not NPC.IsChannellingAbility(myHero) and not NPC.HasState(myHero, Enum.ModifierState.MODIFIER_STATE_INVISIBLE) then
 		
 		if soulring and Ability.IsReady(soulring) and Menu.IsEnabled(fooAllInOne.optionItemSoulring) then
 			Ability.CastNoTarget(soulring)
@@ -1861,7 +1875,7 @@ function fooAllInOne.WindRunnerCombo(myHero, enemy)
 					Ability.CastTarget(focusFire, enemy)
 					return
 				end
-				if windRun and Ability.IsCastable(windRun, myMana) then
+				if windRun and Ability.IsCastable(windRun, myMana) and #NPC.GetHeroesInRadius(myHero, 600, Enum.TeamType.TEAM_ENEMY) >= 3 then
 					Ability.CastNoTarget(windRun)
 					return
 				end
@@ -1943,8 +1957,6 @@ function fooAllInOne.TimberCombo(myHero, enemy)
 				end
 			end
 		end
-
-
 	end
 
 	if not Ability.IsHidden(chakramReturn) and fooAllInOne.lastCastTime == 1 then
@@ -1961,7 +1973,6 @@ function fooAllInOne.TimberCombo(myHero, enemy)
 			return
 		end
 	end
-
 end
 
 function fooAllInOne.TimberSaveChakramReturn(myHero, enemy)
@@ -2653,6 +2664,324 @@ function fooAllInOne.VisageFamiliarControl(myHero, enemy, familiarEntity, attack
 		end
 	end
 end
+
+function fooAllInOne.ArcWardenCombo(myHero, enemy)
+
+	if not Menu.IsEnabled(fooAllInOne.optionHeroArcWarden) then return end
+	if (os.clock() - fooAllInOne.lastTick) < fooAllInOne.delay then return end
+
+	local radiantFountain = Vector(-7600, -7300, 640)
+	local direFountain = Vector(7800, 7250, 640)
+
+	local myFountain
+	if myFountain == nil then
+		for i = 1, NPCs.Count() do 
+		local npc = NPCs.Get(i)
+    			if Entity.IsSameTeam(myHero, npc) and NPC.IsStructure(npc) then
+    				if NPC.GetUnitName(npc) ~= nil then
+        				if NPC.GetUnitName(npc) == "dota_fountain" then
+						myFountain = npc
+					end
+				end
+			end
+		end
+	end
+
+	local myFaction
+	if myFaction == nil then
+		if NPC.IsPositionInRange(myFountain, radiantFountain, 1000, 0) then
+			myFaction = "radiant"
+		else myFaction = "dire"
+		end
+	end
+
+	local flux = NPC.GetAbilityByIndex(myHero, 0)
+	local magneticField = NPC.GetAbilityByIndex(myHero, 1)
+	local sparkWraith = NPC.GetAbilityByIndex(myHero, 2)
+	local tempestDouble = NPC.GetAbilityByIndex(myHero, 3)
+
+	local myMana = NPC.GetMana(myHero)
+	
+	local tempestDoubleEntity
+	for i = 1, NPCs.Count() do
+        local npc = NPCs.Get(i)
+		if tempestDouble then
+			if npc and npc ~= myHero then
+				if NPC.GetUnitName(npc) == "npc_dota_hero_arc_warden" then
+					if NPC.HasModifier(npc, "modifier_arc_warden_tempest_double") then
+						if npc ~= nil then
+							if Entity.IsAlive(npc) then
+								tempestDoubleEntity = npc
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+
+	fooAllInOne.itemUsage(myHero, enemy)
+	fooAllInOne.utilityItemMidas(tempestDoubleEntity, NPC.GetItem(tempestDoubleEntity, "item_hand_of_midas", true))
+	
+	if Menu.IsKeyDown(fooAllInOne.optionArcWardenPushKey) then
+		fooAllInOne.ArcWardenPort(myHero, tempestDoubleEntity, tempestDouble, myMana, myFaction, radiantFountain, direFountain)
+	end
+
+	fooAllInOne.ArcWardenPush(myHero, tempestDoubleEntity, myFaction, radiantFountain, direFountain)
+	
+	if enemy and NPC.IsEntityInRange(myHero, enemy, 1200) then
+		if Menu.IsKeyDown(fooAllInOne.optionComboKey) and Entity.GetHealth(enemy) > 0 and not NPC.HasState(enemy, Enum.ModifierState.MODIFIER_STATE_MAGIC_IMMUNE) then
+			if not NPC.IsEntityInRange(myHero, enemy, NPC.GetAttackRange(myHero)) then
+				if not (NPC.HasModifier(myHero, "modifier_item_invisibility_edge_windwalk") or NPC.HasModifier(myHero, "modifier_item_silver_edge_windwalk")) then
+					Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_MOVE_TO_POSITION, target, NPC.GetAbsOrigin(enemy), ability, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_HERO_ONLY, npc, queue, showEffects)
+					fooAllInOne.makeDelay(0.2)
+					return
+				end
+				if NPC.HasModifier(myHero, "modifier_item_invisibility_edge_windwalk") or NPC.HasModifier(myHero, "modifier_item_silver_edge_windwalk") then
+					Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_ATTACK_TARGET, enemy, Vector(0,0,0), ability, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_HERO_ONLY, npc, queue, showEffects)
+					fooAllInOne.makeDelay(0.2)
+					return	
+				end
+			else
+				if NPC.HasModifier(myHero, "modifier_item_invisibility_edge_windwalk") or NPC.HasModifier(myHero, "modifier_item_silver_edge_windwalk") then
+					Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_ATTACK_TARGET, enemy, Vector(0,0,0), ability, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_HERO_ONLY, npc, queue, showEffects)
+					fooAllInOne.makeDelay(0.2)
+					return	
+				end
+				if not (NPC.HasModifier(myHero, "modifier_item_invisibility_edge_windwalk") or NPC.HasModifier(myHero, "modifier_item_silver_edge_windwalk")) then
+					if tempestDouble and Ability.IsCastable(tempestDouble, myMana) then
+						Ability.CastNoTarget(tempestDouble)
+						fooAllInOne.makeDelay(Ability.GetCastPoint(tempestDouble))
+						return
+					end
+			
+					if flux and Ability.IsCastable(flux, myMana) and #NPC.GetHeroesInRadius(enemy, 225, Enum.TeamType.TEAM_FRIEND) < 1 then
+						Ability.CastTarget(flux, enemy)
+					--	fooAllInOne.makeDelay(Ability.GetCastPoint(flux))
+						return
+					end
+					fooAllInOne.ArcWardenFight(myHero, enemy, tempestDoubleEntity)
+					if magneticField and Ability.IsCastable(magneticField, myMana) then
+						Ability.CastPosition(magneticField, Entity.GetAbsOrigin(myHero))
+					--	fooAllInOne.makeDelay(Ability.GetCastPoint(magneticField))
+						return
+					end
+					if sparkWraith and Ability.IsCastable(sparkWraith, myMana) then
+						local sparkPrediction = 2 + (NetChannel.GetAvgLatency(Enum.Flow.FLOW_OUTGOING) * 2)
+						Ability.CastPosition(sparkWraith, fooAllInOne.castPrediction(myHero, enemy, sparkPrediction))
+					--	fooAllInOne.makeDelay(Ability.GetCastPoint(sparkWraith))
+						return
+					end
+				end
+			end			
+		end
+	end	
+end
+
+function fooAllInOne.ArcWardenFight(myHero, enemy, tempestDoubleEntity)
+
+	if not tempestDoubleEntity then return end
+	if (os.clock() - fooAllInOne.lastTick) < fooAllInOne.delay then return end
+	if NPC.IsChannellingAbility(tempestDoubleEntity) then return end
+
+	local flux = NPC.GetAbilityByIndex(tempestDoubleEntity, 0)
+	local magneticField = NPC.GetAbilityByIndex(tempestDoubleEntity, 1)
+	local sparkWraith = NPC.GetAbilityByIndex(tempestDoubleEntity, 2)
+
+	local wardenMana = NPC.GetMana(tempestDoubleEntity)
+
+	fooAllInOne.itemUsage(tempestDoubleEntity, enemy)
+
+	if not NPC.IsEntityInRange(tempestDoubleEntity, enemy, NPC.GetAttackRange(tempestDoubleEntity)-20) then
+		Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_MOVE_TO_POSITION, target, NPC.GetAbsOrigin(enemy), ability, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
+		fooAllInOne.makeDelay(0.2)
+		return
+	else
+		if flux and Ability.IsCastable(flux, wardenMana) and #NPC.GetHeroesInRadius(enemy, 225, Enum.TeamType.TEAM_FRIEND) < 1 then
+			Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_TARGET, enemy, Vector(0,0,0), flux, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
+			fooAllInOne.makeDelay(Ability.GetCastPoint(flux))
+			return
+		end
+		if magneticField and Ability.IsCastable(magneticField, wardenMana) and not NPC.HasModifier(myHero, "modifier_arc_warden_magnetic_field") then
+			Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, target, Entity.GetAbsOrigin(tempestDoubleEntity), magneticField, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
+			fooAllInOne.makeDelay(Ability.GetCastPoint(magneticField))
+			return
+		end
+		if sparkWraith and Ability.IsCastable(sparkWraith, wardenMana) then
+			local sparkPrediction = 2 + (NetChannel.GetAvgLatency(Enum.Flow.FLOW_OUTGOING) * 2)
+			Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, target, fooAllInOne.castPrediction(tempestDoubleEntity, enemy, sparkPrediction), sparkWraith, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
+			fooAllInOne.makeDelay(Ability.GetCastPoint(sparkWraith))
+			return
+		end
+		if not (Ability.IsReady(flux) and Ability.IsReady(magneticField) and Ability.IsReady(sparkWraith)) then
+			Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_ATTACK_TARGET, enemy, Vector(0,0,0), ability, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
+			fooAllInOne.makeDelay(0.2)
+			return
+		end	
+	end
+end
+	
+function fooAllInOne.ArcWardenPort(myHero, tempestDoubleEntity, tempestDouble, myMana, myFaction, radiantFountain, direFountain)
+
+	if not Menu.IsEnabled(fooAllInOne.optionHeroArcWardenPush) then return end
+	if (os.clock() - fooAllInOne.lastTick) < fooAllInOne.delay then return end
+	if NPC.IsChannellingAbility(tempestDoubleEntity) then return end
+
+	local enemyFountainPos
+	if enemyFountainPos == nil then
+		if myFaction == "radiant" then
+			enemyFountainPos = direFountain
+		else enemyFountainPos = radiantFountain
+		end
+	end
+	
+	local townPortal = NPC.GetItem(tempestDoubleEntity, "item_tpscroll", true)
+	local travelBoots1 = NPC.GetItem(tempestDoubleEntity, "item_travel_boots", true)
+	local travelBoots2 = NPC.GetItem(tempestDoubleEntity, "item_travel_boots_2", true)
+	
+	local wardenMana = NPC.GetMana(tempestDoubleEntity)
+
+	if Menu.IsEnabled(fooAllInOne.optionHeroArcWardenPushTP) then	
+		local targetTower
+		if NPC.HasItem(myHero, "item_tpscroll", true) then
+			for i = 1, NPCs.Count() do 
+			local npc = NPCs.Get(i)
+  				if Entity.IsSameTeam(myHero, npc) and NPC.IsTower(npc) then
+					if #NPC.GetUnitsInRadius(npc, 1500, Enum.TeamType.TEAM_ENEMY) >= 3 and #NPC.GetHeroesInRadius(npc, 900, Enum.TeamType.TEAM_ENEMY) <= 1  and #NPC.GetHeroesInRadius(npc, 1000, Enum.TeamType.TEAM_FRIEND) <= 1 then
+						if npc ~= nil then
+							if (Entity.GetAbsOrigin(npc) - Entity.GetAbsOrigin(myHero)):Length2D() > 3000 then
+								targetTower = npc
+							end
+						end
+					end
+				end
+			end
+		end
+
+		if targetTower ~= nil then
+			if tempestDouble and Ability.IsCastable(tempestDouble, myMana) then
+				Ability.CastNoTarget(tempestDouble)
+				fooAllInOne.makeDelay(Ability.GetCastPoint(tempestDouble))
+				return
+			end
+			if tempestDoubleEntity and townPortal and Ability.IsCastable(townPortal, wardenMana) then
+					Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, target, Entity.GetAbsOrigin(targetTower), townPortal, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
+					return
+			end
+		end
+	end
+
+	local targetCreep
+	local pushDistance = 99999
+	if NPC.HasItem(myHero, "item_travel_boots", true) or NPC.HasItem(myHero, "item_travel_boots_2", true) then
+		for i = 1, NPCs.Count() do 
+		local npc = NPCs.Get(i)
+    			if Entity.IsSameTeam(myHero, npc) and NPC.IsLaneCreep(npc) and not NPC.IsDormant(npc) then
+				if #NPC.GetUnitsInRadius(npc, 1200, Enum.TeamType.TEAM_ENEMY) >= 3 and #NPC.GetHeroesInRadius(npc, 900, Enum.TeamType.TEAM_ENEMY) <= 1  and #NPC.GetHeroesInRadius(npc, 1000, Enum.TeamType.TEAM_FRIEND) <= 1 then
+					if (Entity.GetHealth(npc) / Entity.GetMaxHealth(npc)) >= 0.8 and #NPC.GetUnitsInRadius(npc, 500, Enum.TeamType.TEAM_FRIEND) >= 2 then	
+						if npc ~= nil then
+							if (Entity.GetAbsOrigin(npc) - Entity.GetAbsOrigin(myHero)):Length2D() > 3000 then
+								if (Entity.GetAbsOrigin(npc) - enemyFountainPos):Length2D() < pushDistance then
+									targetCreep = npc
+									pushDistance = (Entity.GetAbsOrigin(npc) - enemyFountainPos):Length2D()
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+
+	if targetCreep == nil then
+		pushDistance = 99999
+	end
+
+	if targetCreep ~= nil then
+		if tempestDouble and Ability.IsCastable(tempestDouble, myMana) then
+			Ability.CastNoTarget(tempestDouble)
+			fooAllInOne.makeDelay(Ability.GetCastPoint(tempestDouble))
+			return
+		end
+		if tempestDoubleEntity then
+			 if travelBoots1 and Ability.IsCastable(travelBoots1, wardenMana) then
+				Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, target, Entity.GetAbsOrigin(targetCreep), travelBoots1, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
+				return
+			end
+			if travelBoots2 and Ability.IsCastable(travelBoots2, wardenMana) then
+				Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, target, Entity.GetAbsOrigin(targetCreep), travelBoots2, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
+				return
+			end
+		end
+	end
+end
+
+function fooAllInOne.ArcWardenPush(myHero, tempestDoubleEntity, myFaction, radiantFountain, direFountain)
+
+	if not tempestDoubleEntity then return end
+	if not Menu.IsEnabled(fooAllInOne.optionHeroArcWardenPush) then return end
+	if (os.clock() - fooAllInOne.lastTick) < fooAllInOne.delay then return end
+	if (NPC.GetAbsOrigin(myHero) - NPC.GetAbsOrigin(tempestDoubleEntity)):Length2D() < 2000 then return end
+
+	local wardenMana = NPC.GetMana(tempestDoubleEntity)
+
+	fooAllInOne.utilityItemMidas(tempestDoubleEntity, NPC.GetItem(tempestDoubleEntity, "item_hand_of_midas", true))
+
+	local targetHero
+	local enemyHeroHealth = 99999
+	local targetCreep
+	local enemyCreepHealth = 99999
+	for i, heroes in ipairs(NPC.GetHeroesInRadius(tempestDoubleEntity, 1000, Enum.TeamType.TEAM_ENEMY)) do
+		if heroes then
+        		if Entity.IsAlive(heroes) and not Entity.IsDormant(heroes) and not NPC.HasState(heroes, Enum.ModifierState.MODIFIER_STATE_MAGIC_IMMUNE) and not NPC.IsIllusion(heroes) then
+				if Entity.GetHealth(heroes) < enemyHeroHealth then
+					targetHero = heroes
+					enemyHeroHealth = Entity.GetHealth(heroes)
+				end
+			end
+		else
+			for i, creeps in ipairs(NPC.GetUnitsInRadius(tempestDoubleEntity, 1000, Enum.TeamType.TEAM_ENEMY)) do
+       				if Entity.IsAlive(creeps) and not Entity.IsDormant(creeps) and NPC.IsKillable(creeps) and not NPC.HasState(creeps, Enum.ModifierState.MODIFIER_STATE_INVULNERABLE) then
+					if Entity.GetHealth(creeps) < enemyCreepHealth then
+						targetCreep = creeps
+						enemyCreepHealth = Entity.GetHealth(creeps)
+					end
+				end
+			end
+		end
+	end
+
+	if targetHero then
+		fooAllInOne.ArcWardenFight(myHero, targetHero, tempestDoubleEntity)
+		fooAllInOne.itemUsageSmartOrder(tempestDoubleEntity, targetHero, true)
+	else enemyHeroHealth = 99999
+	end
+
+	if NPC.IsTower(targetCreep) or #NPC.GetUnitsInRadius(tempestDoubleEntity, 600, Enum.TeamType.TEAM_ENEMY) > 3 then
+		if NPC.GetAbilityByIndex(tempestDoubleEntity, 1) and Ability.IsCastable(NPC.GetAbilityByIndex(tempestDoubleEntity, 1), wardenMana) then
+			Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_CAST_POSITION, target, Entity.GetAbsOrigin(tempestDoubleEntity), NPC.GetAbilityByIndex(tempestDoubleEntity, 1), Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
+			return
+		end
+	end
+
+	if targetCreep then
+		Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_ATTACK_TARGET, creeps, Vector(0,0,0), ability, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
+		fooAllInOne.makeDelay(0.2)
+		return
+	else enemyCreepHealth = 99999
+	end
+         
+	if not targetHero and not targetCreep then
+		if myFaction == "radiant" then
+			Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_ATTACK_MOVE, target, direFountain, ability, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
+			fooAllInOne.makeDelay(0.2)
+		else
+			Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_ATTACK_MOVE, target, radiantFountain, ability, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_PASSED_UNIT_ONLY, tempestDoubleEntity)
+			fooAllInOne.makeDelay(0.2)
+		end
+	end	
+end
+					
 
 -- killsteal functions
 function fooAllInOne.AutoNukeKillSteal(myHero)
