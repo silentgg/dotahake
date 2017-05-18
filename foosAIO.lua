@@ -1,5 +1,5 @@
 -- foosAIO.lua
--- Version: 0.17a (alpha initial release)
+-- Version: 0.17b (alpha initial release)
 -- Author: foo0oo
 -- Release Date: 2017/5/03
 
@@ -81,6 +81,8 @@ fooAllInOne.optionHeroArcWardenPushTPStyle = Menu.AddOption({ "Utility","foos Al
 fooAllInOne.optionHeroArcWardenPushTPSelect = Menu.AddOption({ "Utility","foos AllInOne", "Hero Scripts", "Arc Warden" }, "3.4 Auto line selector", "", 0, 1, 1)
 fooAllInOne.optionArcWardenTempestKey = Menu.AddKeyOption({ "Utility","foos AllInOne", "Hero Scripts", "Arc Warden" }, "2.1 Tempest double combo/push key", Enum.ButtonCode.KEY_O)
 fooAllInOne.optionHeroArcWardenTempestTarget = Menu.AddOption({ "Utility","foos AllInOne", "Hero Scripts", "Arc Warden" }, "2.2 Tempest direction", "if tempest double combo/push key is pressed, push in the direction of cursor or enemy fountain", 0, 1, 1)
+fooAllInOne.optionHeroMorphling = Menu.AddOption({ "Utility","foos AllInOne", "Hero Scripts", "Morphling" }, "Morphling Combo", "full shotgun combo")
+fooAllInOne.optionHeroMorphlingKill = Menu.AddOption({ "Utility","foos AllInOne", "Hero Scripts", "Morphling" }, "Draw kill indicator", "will draw a kill indicator if target is killable with full shotgun combo")
 	-- Menu set values
 Menu.SetValueName(fooAllInOne.optionItemVeil, 0, 'OFF')
 Menu.SetValueName(fooAllInOne.optionItemHex, 0, 'OFF')
@@ -152,7 +154,7 @@ fooAllInOne.lastItemTick = 0
 fooAllInOne.ItemCastStop = false
 fooAllInOne.ControlledUnitCastTime = 0
 fooAllInOne.lastAttackTime = 0
-fooAllInOne.necroOwner = nil
+fooAllInOne.IconPath = "resource/flash3/images/small_boost_icons/"
 	-- global Tables
 fooAllInOne.LinkensBreakerItemOrder = {}
 fooAllInOne.ItemCastOrder = {}
@@ -451,7 +453,7 @@ fooAllInOne.AbilityList = {
 { "npc_dota_hero_monkey_king", "monkey_king_untransform", "utility", "0" , "0" },
 { "npc_dota_hero_monkey_king", "monkey_king_wukongs_command", "utility", "0" , "0" },
 { "npc_dota_hero_morphling", "morphling_adaptive_strike", "nuke", "target" , "0" },
-{ "npc_dota_hero_morphling", "morphling_waveform", "nuke", "skillshot" , "0" },
+{ "npc_dota_hero_morphling", "morphling_waveform", "utility", "0" , "0" },
 { "npc_dota_hero_morphling", "morphling_hybrid", "utility", "0" , "0" },
 { "npc_dota_hero_morphling", "morphling_morph", "utility", "0" , "0" },
 { "npc_dota_hero_morphling", "morphling_morph_agi", "utility", "0" , "0" },
@@ -779,6 +781,8 @@ function fooAllInOne.OnUpdate()
 				fooAllInOne.SvenCombo(myHero, enemy)
 			elseif NPC.GetUnitName(myHero) == "npc_dota_hero_visage" then
 				fooAllInOne.VisageCombo(myHero, enemy)
+			elseif NPC.GetUnitName(myHero) == "npc_dota_hero_morphling" then
+				fooAllInOne.MorphCombo(myHero, enemy)
 			end
 		
 		else fooAllInOne.itemUsage(myHero, enemy)
@@ -832,6 +836,20 @@ function fooAllInOne.OnUpdate()
 	
 end
 
+function fooAllInOne.OnDraw()
+
+	local myHero = Heroes.GetLocal()
+        	if not myHero then return end
+		if not Entity.IsAlive(myHero) then return end
+
+	if not NPC.GetUnitName(myHero) == "npc_dota_hero_morphling" then return end
+  	
+	if Menu.IsEnabled(fooAllInOne.optionHeroMorphlingKill) then
+		fooAllInOne.drawMorphlingKillIndicator(myHero)
+	end
+
+end
+
 -- utility functions
 function fooAllInOne.heroSupported(myHero)
 
@@ -849,7 +867,8 @@ function fooAllInOne.heroSupported(myHero)
 		"npc_dota_hero_clinkz",
 		"npc_dota_hero_queenofpain",
 		"npc_dota_hero_sven",
-		"npc_dota_hero_visage"
+		"npc_dota_hero_visage",
+		"npc_dota_hero_morphling"
 			}
 
 	for _, heroName in pairs(supportedHeroList) do
@@ -3353,7 +3372,183 @@ function fooAllInOne.ArcWardenTPPush(myHero, tempestDoubleEntity)
 			fooAllInOne.NecronomiconController(necro, nil, fooAllInOne.GetEnemyFountainPos(myHero))
 		end
 	end
-end					
+end
+
+function fooAllInOne.MorphCombo(myHero, enemy)
+
+	if not Menu.IsEnabled(fooAllInOne.optionHeroMorphling) then return end
+	if not NPC.IsEntityInRange(myHero, enemy, 1500)	then return end
+
+	local waveForm = NPC.GetAbilityByIndex(myHero, 0)
+	local adaptiveStrike = NPC.GetAbilityByIndex(myHero, 1)
+
+	local blink = NPC.GetItem(myHero, "item_blink", true)
+
+	local myMana = NPC.GetMana(myHero)
+	fooAllInOne.itemUsage(myHero, enemy)
+
+	local maxDMG
+	local maxDMGwoWave
+	for k, v in ipairs(fooAllInOne.GetMorphShotgunDMG(myHero, myMana, enemy)) do
+		maxDMG = v[1]
+		maxDMGwoWave = v[2]
+	end
+
+	if Menu.IsKeyDown(fooAllInOne.optionComboKey) and Entity.GetHealth(enemy) > 0 and not NPC.HasState(enemy, Enum.ModifierState.MODIFIER_STATE_MAGIC_IMMUNE) then
+		if not NPC.IsEntityInRange(myHero, enemy, 800) then
+			if blink and Ability.IsReady(blink) then
+				Ability.CastPosition(blink, (Entity.GetAbsOrigin(enemy) + (Entity.GetAbsOrigin(myHero) - Entity.GetAbsOrigin(enemy)):Normalized():Scaled(300)))
+			end
+			if fooAllInOne.SleepReady(0.1) and not blink or (blink and not Ability.IsReady(blink)) then
+				Player.PrepareUnitOrders(Players.GetLocal(), Enum.UnitOrder.DOTA_UNIT_ORDER_MOVE_TO_POSITION, target, NPC.GetAbsOrigin(enemy), ability, Enum.PlayerOrderIssuer.DOTA_ORDER_ISSUER_HERO_ONLY, npc, queue, showEffects)
+				fooAllInOne.lastTick = os.clock()
+			end	
+		else
+			if NPC.HasItem(myHero, "item_ethereal_blade", true) then
+				if NPC.HasModifier(enemy, "modifier_item_ethereal_blade_ethereal") then
+					if Entity.GetHealth(enemy) < maxDMGwoWave then
+						if adaptiveStrike and Ability.IsCastable(adaptiveStrike, myMana) then
+							Ability.CastTarget(adaptiveStrike, enemy)
+							fooAllInOne.lastTick = os.clock()
+							return
+						end
+					end
+					if Entity.GetHealth(enemy) >= maxDMGwoWave then
+						if adaptiveStrike and Ability.IsCastable(adaptiveStrike, myMana) then
+							Ability.CastTarget(adaptiveStrike, enemy)
+							fooAllInOne.lastTick = os.clock()
+						end
+						if fooAllInOne.SleepReady(0.4) and waveForm and Ability.IsCastable(waveForm, myMana) and not Ability.IsReady(adaptiveStrike) then
+						Ability.CastPosition(waveForm, Entity.GetAbsOrigin(enemy))
+						end
+					end
+				end
+			else
+				if Entity.GetHealth(enemy) < maxDMGwoWave then
+					if adaptiveStrike and Ability.IsCastable(adaptiveStrike, myMana) then
+						Ability.CastTarget(adaptiveStrike, enemy)
+						fooAllInOne.lastTick = os.clock()
+						return
+					end
+				end
+				if Entity.GetHealth(enemy) >= maxDMGwoWave then
+					if adaptiveStrike and Ability.IsCastable(adaptiveStrike, myMana) then
+						Ability.CastTarget(adaptiveStrike, enemy)
+						fooAllInOne.lastTick = os.clock()
+					end
+					if fooAllInOne.SleepReady(0.4) and waveForm and Ability.IsCastable(waveForm, myMana) and not Ability.IsReady(adaptiveStrike) then
+						Ability.CastPosition(waveForm, Entity.GetAbsOrigin(enemy))
+					end
+				end
+			end
+		end
+	end
+end
+
+function fooAllInOne.GetMorphShotgunDMG(myHero, myMana, enemy)
+
+	if not myHero then return end
+	if not NPC.GetUnitName(myHero) == "npc_dota_hero_morphling" then return end
+
+	local waveForm = NPC.GetAbilityByIndex(myHero, 0)
+	local adaptiveStrike = NPC.GetAbilityByIndex(myHero, 1)
+
+	local waveFormLevel
+	if waveForm then
+		waveFormLevel = Ability.GetLevel(waveForm)
+	end
+	local waveFormDMG
+	if waveForm and Ability.IsCastable(waveForm, myMana) then
+		waveFormDMG = 100 + 75 * (waveFormLevel - 1)
+	elseif not waveForm or (waveForm and not Ability.IsCastable(waveForm, myMana)) then
+		waveFormDMG = 0
+	end
+
+	local adaptiveStrikeLevel
+	if adaptiveStrike then
+		adaptiveStrikeLevel = Ability.GetLevel(adaptiveStrike)
+	end
+	local adaptiveStrikeDMG
+	if adaptiveStrike and Ability.IsCastable(adaptiveStrike, myMana) then
+		local basicDamage = 100
+		local myAgility = Hero.GetAgilityTotal(myHero)
+		local myStrength = Hero.GetStrengthTotal(myHero)
+		local minMultiplier = 0.25
+		local maxMultiplier = 0.5 + 0.5 * (adaptiveStrikeLevel - 1)
+
+		local ratio = myAgility / myStrength
+		local minRatio = 2/3
+		local maxRatio = 3/2
+		local multiplier = minMultiplier+(maxMultiplier-minMultiplier)*(ratio-minRatio)/(maxRatio-minRatio)
+		multiplier = multiplier > maxMultiplier and maxMultiplier or multiplier
+		multiplier = multiplier < minMultiplier and minMultiplier or multiplier
+
+		adaptiveStrikeDMG = basicDamage + myAgility * multiplier
+	elseif not adaptiveStrike or (adaptiveStrike and not Ability.IsCastable(adaptiveStrike, myMana)) then
+		adaptiveStrikeDMG = 0
+	end
+	
+	local eBlade = NPC.GetItem(myHero, "item_ethereal_blade", true)
+	local eBladeDMG
+	if eBlade and Ability.IsCastable(eBlade, myMana) then
+		local myAgility = Hero.GetAgilityTotal(myHero)
+		eBladeDMG = (2 * myAgility + 75)
+	elseif not eBlade or (eBlade and not Ability.IsCastable(eBlade, myMana)) then
+		eBladeDMG = 0
+	end
+
+	local veil = NPC.GetItem(myHero, "item_veil_of_discord", true)
+
+	local overAllDMG = waveFormDMG + adaptiveStrikeDMG + eBladeDMG
+	if veil and Ability.IsCastable(veil, myMana) then
+		overAllDMG = overAllDMG * 1.25
+	end
+	if eBlade and Ability.IsCastable(eBlade, myMana) then
+		overAllDMG = overAllDMG * 1.4
+	end
+
+	local overAllDMGwoWave = adaptiveStrikeDMG + eBladeDMG
+	if veil and Ability.IsCastable(veil, myMana) then
+		overAllDMGwoWave = overAllDMGwoWave * 1.25
+	end
+	if eBlade and Ability.IsCastable(eBlade, myMana) then
+		overAllDMGwoWave = overAllDMGwoWave * 1.4
+	end
+	
+	local trueOverallDMG = math.floor((1 - NPC.GetMagicalArmorValue(enemy)) * overAllDMG + overAllDMG * (Hero.GetIntellectTotal(myHero) / 14 / 100))
+	local trueOverallDMGwoWave = math.floor((1 - NPC.GetMagicalArmorValue(enemy)) * overAllDMGwoWave + overAllDMGwoWave * (Hero.GetIntellectTotal(myHero) / 14 / 100))
+	return { {trueOverallDMG, trueOverallDMGwoWave} }
+end		
+
+function fooAllInOne.drawMorphlingKillIndicator(myHero)
+	
+	if not NPC.GetUnitName(myHero) == "npc_dota_hero_morphling" then return end
+	
+	if imageHandle == nil then
+		imageHandle = Renderer.LoadImage(fooAllInOne.IconPath .. "15401" .. ".png")
+	end
+
+	local myMana = NPC.GetMana(myHero)
+	
+	
+	for _, heroes in ipairs(NPC.GetHeroesInRadius(myHero, 1200, Enum.TeamType.TEAM_ENEMY)) do
+		if not heroes then return end
+		local pos = Entity.GetAbsOrigin(heroes)
+
+       		local x, y, vis = Renderer.WorldToScreen(pos)
+			if not vis then return end
+	
+		if NPC.IsHero(heroes) and not NPC.IsIllusion(heroes) and not NPC.IsDormant(heroes) and Entity.GetHealth(heroes) > 0 and not NPC.HasState(heroes, Enum.ModifierState.MODIFIER_STATE_MAGIC_IMMUNE) then
+			for k, v in ipairs(fooAllInOne.GetMorphShotgunDMG(myHero, myMana, heroes)) do
+				if Entity.GetHealth(heroes) <= v[1] - 35 then
+					Renderer.SetDrawColor(255, 255, 255, 255)
+					Renderer.DrawImage(imageHandle, x, y, 25, 25)
+				end
+			end
+		end
+	end  
+end
+				
 
 -- killsteal functions
 function fooAllInOne.AutoNukeKillSteal(myHero)
@@ -3418,11 +3613,11 @@ function fooAllInOne.AutoNukeKillSteal(myHero)
 											Ability.CastPosition(NPC.GetAbility(myHero, skillName), fooAllInOne.castLinearPrediction(myHero, stealEnemy, shockwavePrediction))
 											return
 										end
-										if skillName == "morphling_waveform" then
-											local wavePrediction = Ability.GetCastPoint(NPC.GetAbility(myHero, skillName)) + (Entity.GetAbsOrigin(stealEnemy):__sub(Entity.GetAbsOrigin(myHero)):Length2D() / 1250) + (NetChannel.GetAvgLatency(Enum.Flow.FLOW_OUTGOING) * 2)
-											Ability.CastPosition(NPC.GetAbility(myHero, skillName), fooAllInOne.castLinearPrediction(myHero, stealEnemy, wavePrediction))
-											return
-										end
+									--	if skillName == "morphling_waveform" then
+									--		local wavePrediction = Ability.GetCastPoint(NPC.GetAbility(myHero, skillName)) + (Entity.GetAbsOrigin(stealEnemy):__sub(Entity.GetAbsOrigin(myHero)):Length2D() / 1250) + (NetChannel.GetAvgLatency(Enum.Flow.FLOW_OUTGOING) * 2)
+									--		Ability.CastPosition(NPC.GetAbility(myHero, skillName), fooAllInOne.castLinearPrediction(myHero, stealEnemy, wavePrediction))
+									--		return
+									--	end
 										if skillName == "pugna_nether_blast" then
 											local blastPrediction = Ability.GetCastPoint(NPC.GetAbility(myHero, skillName)) + 0.9 + (NetChannel.GetAvgLatency(Enum.Flow.FLOW_OUTGOING) * 2)
 											Ability.CastPosition(NPC.GetAbility(myHero, skillName), fooAllInOne.castPrediction(myHero, stealEnemy, blastPrediction))
