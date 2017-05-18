@@ -1202,7 +1202,6 @@ function fooAllInOne.GetNecronomiconEntityTable(myHero, caster)
 				if NPC.GetUnitName(npc) == string.match(NPC.GetUnitName(npc) , 'npc_dota_necronomicon_archer_1?') or NPC.GetUnitName(npc) == string.match(NPC.GetUnitName(npc) , 'npc_dota_necronomicon_warrior_1?') then
 					if npc ~= nil then
 						table.insert(necronomiconTable, npc)
-						fooAllInOne.necroOwner = Entity.GetOwner(npc)
 					end
 				end
 			end
